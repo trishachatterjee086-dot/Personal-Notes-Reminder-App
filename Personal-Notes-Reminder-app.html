@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MemoFlow — Personal Notes & Reminder App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    /* Custom subtle scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(156, 163, 175, 0.4);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(156, 163, 175, 0.6);
+    }
+
+    /* Toast animation */
+    @keyframes slideInRight {
+      from {
+        transform: translateX(110%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+    .toast-enter {
+      animation: slideInRight 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    /* Pulse ring for urgent/due badges */
+    @keyframes softPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.65; }
+    }
+    .animate-soft-pulse {
+      animation: softPulse 2s infinite;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200 min-h-screen flex flex-col">
+
+  <!-- Toast Notification Container (For Live Reminders & System Alerts) -->
+  <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col gap-3 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+  <!-- Top Navigation Header -->
+  <header class="sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      <!-- Brand Logo -->
+      <div class="flex items-center gap-2.5 shrink-0">
+        <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-sm shadow-indigo-500/30">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-tight leading-none">MemoFlow</h1>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">Notes & Smart Reminders</p>
+        </div>
+      </div>
+
+      <!-- Search Bar -->
+      <div class="flex-1 max-w-md relative">
+        <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
+        </svg>
+        <input
+          type="text"
+          id="searchInput"
+          placeholder="Search notes, tasks, or tags..."
+          class="w-full pl-10 pr-8 py-2 text-sm bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 rounded-xl outline-none transition-all"
+        />
+        <button id="clearSearchBtn" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Header Actions -->
+      <div class="flex items-center gap-2 shrink-0">
+        <!-- Export JSON -->
+        <button
+          onclick="exportData()"
+          title="Export Backup (JSON)"
+          class="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+        </button>
+
+        <!-- Import JSON -->
+        <label
+          title="Import Backup (JSON)"
+          class="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+          </svg>
+          <input type="file" id="importFileInput" accept=".json" class="hidden" onchange="importData(event)" />
+        </label>
+
+        <!-- Theme Toggle -->
+        <button
+          id="themeToggleBtn"
+          onclick="toggleTheme()"
+          title="Toggle Dark/Light Theme"
+          class="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+        >
+          <!-- Sun icon (shown in dark mode) -->
+          <svg id="sunIcon" class="w-5 h-5 hidden dark:block text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+          <!-- Moon icon (shown in light mode) -->
+          <svg id="moonIcon" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+          </svg>
+        </button>
+
+        <!-- Primary Create Button -->
+        <button
+          onclick="openNoteModal()"
+          class="ml-1 inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm shadow-indigo-500/25 transition-all"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+          </svg>
+          <span class="hidden sm:inline">New Note</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <!-- Filter & Stats Bar -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+      <!-- View Status Tabs -->
+      <div class="inline-flex p-1 bg-slate-200/70 dark:bg-slate-800/80 rounded-xl self-start overflow-x-auto max-w-full">
+        <button onclick="setStatusFilter('all')" data-status="all" class="status-tab px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all">
+          All <span id="count-all" class="ml-1 text-xs opacity-75">0</span>
+        </button>
+        <button onclick="setStatusFilter('reminders')" data-status="reminders" class="status-tab px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all">
+          Reminders <span id="count-reminders" class="ml-1 text-xs opacity-75">0</span>
+        </button>
+        <button onclick="setStatusFilter('pinned')" data-status="pinned" class="status-tab px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all">
+          Pinned <span id="count-pinned" class="ml-1 text-xs opacity-75">0</span>
+        </button>
+        <button onclick="setStatusFilter('completed')" data-status="completed" class="status-tab px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all">
+          Completed <span id="count-completed" class="ml-1 text-xs opacity-75">0</span>
+        </button>
+      </div>
+
+      <!-- Category Filter Pills -->
+      <div class="flex items-center gap-1.5 flex-wrap">
+        <span class="text-xs font-medium text-slate-400 mr-1">Category:</span>
+        <button onclick="setCategoryFilter('All')" data-cat="All" class="cat-pill px-3 py-1 rounded-full text-xs font-medium border transition-all">All</button>
+        <button onclick="setCategoryFilter('Personal')" data-cat="Personal" class="cat-pill px-3 py-1 rounded-full text-xs font-medium border transition-all">Personal</button>
+        <button onclick="setCategoryFilter('Work')" data-cat="Work" class="cat-pill px-3 py-1 rounded-full text-xs font-medium border transition-all">Work</button>
+        <button onclick="setCategoryFilter('Ideas')" data-cat="Ideas" class="cat-pill px-3 py-1 rounded-full text-xs font-medium border transition-all">Ideas</button>
+        <button onclick="setCategoryFilter('Urgent')" data-cat="Urgent" class="cat-pill px-3 py-1 rounded-full text-xs font-medium border transition-all">Urgent</button>
+      </div>
+    </div>
+
+    <!-- Live Clock & Audio Hint Banner -->
+    <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-5 px-1">
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span>Reminder engine active &bull; <span id="liveClock" class="font-medium text-slate-700 dark:text-slate-300"></span></span>
+      </div>
+      <button onclick="playReminderChime()" class="hover:text-indigo-600 dark:hover:text-indigo-400 underline decoration-dotted transition-colors">
+        Test Alert Sound
+      </button>
+    </div>
+
+    <!-- Notes Grid -->
+    <div id="notesGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <!-- Cards dynamically injected here -->
+    </div>
+
+    <!-- Empty State -->
+    <div id="emptyState" class="hidden flex-col items-center justify-center text-center py-20 px-4">
+      <div class="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 mb-4">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      </div>
+      <h3 class="text-base font-semibold text-slate-800 dark:text-slate-200">No notes found</h3>
+      <p class="text-sm text-slate-500 dark:text-slate-400 max-w-xs mt-1">
+        Create a new note or reminder, or adjust your active search and category filters.
+      </p>
+      <button
+        onclick="openNoteModal()"
+        class="mt-5 inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors"
+      >
+        + Create Your First Note
+      </button>
+    </div>
+  </main>
+
+  <!-- Create / Edit Note Modal -->
+  <div id="noteModal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden transform transition-all">
+      <!-- Modal Header -->
+      <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <h2 id="modalTitle" class="text-base font-bold">New Note</h2>
+        <button onclick="closeNoteModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Modal Form -->
+      <form id="noteForm" onsubmit="saveNote(event)" class="p-6 space-y-4">
+        <input type="hidden" id="noteId" />
+
+        <!-- Title -->
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Title</label>
+          <input
+            type="text"
+            id="noteTitleInput"
+            required
+            placeholder="e.g., Quarterly Design Review"
+            class="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+          />
+        </div>
+
+        <!-- Content -->
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Note Details</label>
+          <textarea
+            id="noteContentInput"
+            rows="4"
+            placeholder="Write your thoughts, checklist, or meeting notes..."
+            class="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all resize-none"
+          ></textarea>
+        </div>
+
+        <!-- Category & Pin Row -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Category</label>
+            <select
+              id="noteCategoryInput"
+              class="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-xl focus:border-indigo-500 outline-none"
+            >
+              <option value="Personal">Personal</option>
+              <option value="Work">Work</option>
+              <option value="Ideas">Ideas</option>
+              <option value="Urgent">Urgent</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Card Color</label>
+            <div id="colorPicker" class="flex items-center gap-2 h-[38px]">
+              <!-- Color swatches populated via JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Reminder Date & Time -->
+        <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <label class="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              Set Reminder (Optional)
+            </label>
+            <button type="button" onclick="clearReminderInput()" class="text-xs text-slate-400 hover:text-rose-500 transition-colors">Clear</button>
+          </div>
+
+          <input
+            type="datetime-local"
+            id="noteReminderInput"
+            class="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:border-indigo-500 outline-none"
+          />
+
+          <!-- Quick Time Presets -->
+          <div class="flex flex-wrap gap-1.5 pt-0.5">
+            <button type="button" onclick="setQuickReminder(0.17)" class="text-[11px] font-medium px-2.5 py-1 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors">
+              +10 sec (Test)
+            </button>
+            <button type="button" onclick="setQuickReminder(15)" class="text-[11px] font-medium px-2.5 py-1 rounded-md bg-slate-200/70 dark:bg-slate-700/70 hover:bg-slate-300/70 dark:hover:bg-slate-600 transition-colors">
+              +15 mins
+            </button>
+            <button type="button" onclick="setQuickReminder(60)" class="text-[11px] font-medium px-2.5 py-1 rounded-md bg-slate-200/70 dark:bg-slate-700/70 hover:bg-slate-300/70 dark:hover:bg-slate-600 transition-colors">
+              +1 hour
+            </button>
+            <button type="button" onclick="setQuickReminder(1440)" class="text-[11px] font-medium px-2.5 py-1 rounded-md bg-slate-200/70 dark:bg-slate-700/70 hover:bg-slate-300/70 dark:hover:bg-slate-600 transition-colors">
+              Tomorrow
+            </button>
+          </div>
+        </div>
+
+        <!-- Pin Checkbox & Actions -->
+        <div class="flex items-center justify-between pt-2">
+          <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" id="notePinnedInput" class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300" />
+            <span class="text-sm font-medium text-slate-700 dark:text-slate-300">Pin to top</span>
+          </label>
+
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="closeNoteModal()" class="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
+              Cancel
+            </button>
+            <button type="submit" class="px-5 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm shadow-indigo-500/25 transition-all">
+              Save Note
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // ==========================================
+    // 1. STATE & CONFIGURATION
+    // ==========================================
+    const STORAGE_KEY = 'memoflow_notes_v1';
+    const THEME_KEY = 'memoflow_theme_v1';
+
+    const CARD_COLORS = [
+      { id: 'default', label: 'Default', bg: 'bg-white dark:bg-slate-900', border: 'border-slate-200 dark:border-slate-800', swatch: 'bg-slate-200 dark:bg-slate-700' },
+      { id: 'amber',   label: 'Amber',   bg: 'bg-amber-50/90 dark:bg-amber-950/30', border: 'border-amber-200 dark:border-amber-800/60', swatch: 'bg-amber-400' },
+      { id: 'emerald', label: 'Emerald', bg: 'bg-emerald-50/90 dark:bg-emerald-950/30', border: 'border-emerald-200 dark:border-emerald-800/60', swatch: 'bg-emerald-400' },
+      { id: 'sky',     label: 'Sky',     bg: 'bg-sky-50/90 dark:bg-sky-950/30', border: 'border-sky-200 dark:border-sky-800/60', swatch: 'bg-sky-400' },
+      { id: 'rose',    label: 'Rose',    bg: 'bg-rose-50/90 dark:bg-rose-950/30', border: 'border-rose-200 dark:border-rose-800/60', swatch: 'bg-rose-400' },
+      { id: 'violet',  label: 'Violet',  bg: 'bg-violet-50/90 dark:bg-violet-950/30', border: 'border-violet-200 dark:border-violet-800/60', swatch: 'bg-violet-400' }
+    ];
+
+    const CATEGORY_STYLES = {
+      Personal: 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300',
+      Work:     'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300',
+      Ideas:    'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300',
+      Urgent:   'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300'
+    };
+
+    let notes = [];
+    let currentStatusFilter = 'all'; // 'all' | 'reminders' | 'pinned' | 'completed'
+    let currentCategoryFilter = 'All';
+    let searchQuery = '';
+    let selectedColor = 'default';
+
+    // ==========================================
+    // 2. INITIALIZATION & SEED DATA
+    // ==========================================
+    function initApp() {
+      initTheme();
+      loadNotes();
+      renderColorSwatches();
+      bindEvents();
+      renderAll();
+      startReminderEngine();
+    }
+
+    function loadNotes() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        try {
+          notes = JSON.parse(raw);
+          return;
+        } catch (e) {
+          console.error('Failed to parse saved notes:', e);
+        }
+      }
+
+      // Starter notes for immediate out-of-the-box experience
+      const now = Date.now();
+      notes = [
+        {
+          id: 'note-1',
+          title: 'Welcome to MemoFlow 👋',
+          content: 'Organize quick thoughts, pin high-priority cards, and set time-sensitive reminders with live alerts.\n\nTry clicking "+10 sec (Test)" when creating a note to test the live reminder banner & chime!',
+          category: 'Personal',
+          color: 'sky',
+          pinned: true,
+          completed: false,
+          reminderAt: null,
+          notified: false,
+          createdAt: now - 3600000
+        },
+        {
+          id: 'note-2',
+          title: 'Product Roadmap Sync',
+          content: '• Finalize Q3 milestone deliverables\n• Review user feedback from beta cohort\n• Prepare sprint demo deck',
+          category: 'Work',
+          color: 'default',
+          pinned: true,
+          completed: false,
+          reminderAt: new Date(now + 25 * 60 * 1000).toISOString(), // 25 mins from now
+          notified: false,
+          createdAt: now - 7200000
+        },
+        {
+          id: 'note-3',
+          title: 'Weekend App Idea',
+          content: 'Build a minimalist habit streak tracker that syncs offline-first and exports clean weekly markdown summaries.',
+          category: 'Ideas',
+          color: 'amber',
+          pinned: false,
+          completed: false,
+          reminderAt: null,
+          notified: false,
+          createdAt: now - 10800000
+        },
+        {
+          id: 'note-4',
+          title: 'Renew Cloud Server SSL',
+          content: 'Verify auto-renewal cronjob on production cluster before certificate window closes.',
+          category: 'Urgent',
+          color: 'rose',
+          pinned: false,
+          completed: false,
+          reminderAt: new Date(now - 5 * 60 * 1000).toISOString(), // 5 mins overdue
+          notified: true,
+          createdAt: now - 14400000
+        }
+      ];
+      saveToStorage();
+    }
+
+    function saveToStorage() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+    }
+
+    // ==========================================
+    // 3. THEME MANAGEMENT
+    // ==========================================
+    function initTheme() {
+      const savedTheme = localStorage.getItem(THEME_KEY);
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    }
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isDark = html.classList.toggle('dark');
+      localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+    }
+
+    // ==========================================
+    // 4. WEB AUDIO CHIME (NO EXTERNAL FILES)
+    // ==========================================
+    function playReminderChime() {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        const ctx = new AudioCtx();
+        const now = ctx.currentTime;
+
+        // Play a pleasant two-tone bell arpeggio (C6 -> E6)
+        [1046.5, 1318.5].forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.14);
+
+          gain.gain.setValueAtTime(0.001, now + idx * 0.14);
+          gain.gain.exponentialRampToValueAtTime(0.18, now + idx * 0.14 + 0.03);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.14 + 0.65);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + idx * 0.14);
+          osc.stop(now + idx * 0.14 + 0.7);
+        });
+      } catch (e) {
+        console.warn('Web Audio playback blocked or unsupported:', e);
+      }
+    }
+
+    // ==========================================
+    // 5. REMINDER ENGINE & TOAST ALERTS
+    // ==========================================
+    function startReminderEngine() {
+      updateLiveClock();
+      setInterval(() => {
+        updateLiveClock();
+        checkDueReminders();
+        refreshCountdowns();
+      }, 1000);
+    }
+
+    function updateLiveClock() {
+      const el = document.getElementById('liveClock');
+      if (el) {
+        el.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      }
+    }
+
+    function checkDueReminders() {
+      const now = Date.now();
+      let stateChanged = false;
+
+      notes.forEach(note => {
+        if (note.reminderAt && !note.completed && !note.notified) {
+          const dueTime = new Date(note.reminderAt).getTime();
+          if (now >= dueTime) {
+            note.notified = true;
+            stateChanged = true;
+            playReminderChime();
+            showReminderToast(note);
+          }
+        }
+      });
+
+      if (stateChanged) {
+        saveToStorage();
+        renderAll();
+      }
+    }
+
+    function showReminderToast(note) {
+      const container = document.getElementById('toastContainer');
+      const toastId = `toast-${note.id}-${Date.now()}`;
+
+      const toast = document.createElement('div');
+      toast.id = toastId;
+      toast.className = 'toast-enter pointer-events-auto bg-white dark:bg-slate-900 border-l-4 border-indigo-600 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl p-4 flex flex-col gap-2.5';
+      toast.innerHTML = `
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-semibold text-xs uppercase tracking-wider">
+            <svg class="w-4 h-4 animate-bounce" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
+            Reminder Due
+          </div>
+          <button onclick="dismissToast('${toastId}')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div>
+          <h4 class="font-bold text-sm text-slate-900 dark:text-white">${escapeHTML(note.title)}</h4>
+          ${note.content ? `<p class="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-0.5">${escapeHTML(note.content)}</p>` : ''}
+        </div>
+        <div class="flex items-center gap-2 pt-1">
+          <button onclick="snoozeReminder('${note.id}', 5, '${toastId}')" class="flex-1 py-1.5 px-2.5 text-xs font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition-colors">
+            Snooze 5m
+          </button>
+          <button onclick="completeFromToast('${note.id}', '${toastId}')" class="flex-1 py-1.5 px-2.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors">
+            Mark Done
+          </button>
+        </div>
+      `;
+
+      container.appendChild(toast);
+    }
+
+    function showSystemToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toastId = `sys-${Date.now()}`;
+      const accent = type === 'error' ? 'border-rose-500' : 'border-emerald-500';
+
+      const toast = document.createElement('div');
+      toast.id = toastId;
+      toast.className = `toast-enter pointer-events-auto bg-white dark:bg-slate-900 border-l-4 ${accent} border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg px-4 py-3 text-xs font-medium text-slate-700 dark:text-slate-200 flex items-center justify-between gap-3`;
+      toast.innerHTML = `
+        <span>${escapeHTML(message)}</span>
+        <button onclick="dismissToast('${toastId}')" class="text-slate-400 hover:text-slate-600">&times;</button>
+      `;
+      container.appendChild(toast);
+      setTimeout(() => dismissToast(toastId), 3500);
+    }
+
+    function dismissToast(toastId) {
+      const el = document.getElementById(toastId);
+      if (el) el.remove();
+    }
+
+    function snoozeReminder(noteId, minutes, toastId) {
+      const note = notes.find(n => n.id === noteId);
+      if (note) {
+        note.reminderAt = new Date(Date.now() + minutes * 60 * 1000).toISOString();
+        note.notified = false;
+        note.completed = false;
+        saveToStorage();
+        renderAll();
+        showSystemToast(`Snoozed "${note.title}" for ${minutes} minutes.`);
+      }
+      dismissToast(toastId);
+    }
+
+    function completeFromToast(noteId, toastId) {
+      toggleComplete(noteId);
+      dismissToast(toastId);
+    }
+
+    // ==========================================
+    // 6. CRUD OPERATIONS
+    // ==========================================
+    function openNoteModal(noteId = null) {
+      const modal = document.getElementById('noteModal');
+      const form = document.getElementById('noteForm');
+      form.reset();
+
+      if (noteId) {
+        const note = notes.find(n => n.id === noteId);
+        if (!note) return;
+        document.getElementById('modalTitle').textContent = 'Edit Note';
+        document.getElementById('noteId').value = note.id;
+        document.getElementById('noteTitleInput').value = note.title;
+        document.getElementById('noteContentInput').value = note.content;
+        document.getElementById('noteCategoryInput').value = note.category;
+        document.getElementById('notePinnedInput').checked = note.pinned;
+        selectedColor = note.color || 'default';
+
+        if (note.reminderAt) {
+          document.getElementById('noteReminderInput').value = toLocalDatetimeString(new Date(note.reminderAt));
+        }
+      } else {
+        document.getElementById('modalTitle').textContent = 'New Note';
+        document.getElementById('noteId').value = '';
+        selectedColor = 'default';
+      }
+
+      renderColorSwatches();
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      document.getElementById('noteTitleInput').focus();
+    }
+
+    function closeNoteModal() {
+      const modal = document.getElementById('noteModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function saveNote(event) {
+      event.preventDefault();
+      const id = document.getElementById('noteId').value;
+      const title = document.getElementById('noteTitleInput').value.trim();
+      const content = document.getElementById('noteContentInput').value.trim();
+      const category = document.getElementById('noteCategoryInput').value;
+      const pinned = document.getElementById('notePinnedInput').checked;
+      const reminderVal = document.getElementById('noteReminderInput').value;
+
+      if (!title) return;
+
+      const reminderAt = reminderVal ? new Date(reminderVal).toISOString() : null;
+
+      if (id) {
+        const existing = notes.find(n => n.id === id);
+        if (existing) {
+          const reminderChanged = existing.reminderAt !== reminderAt;
+          existing.title = title;
+          existing.content = content;
+          existing.category = category;
+          existing.color = selectedColor;
+          existing.pinned = pinned;
+          existing.reminderAt = reminderAt;
+          if (reminderChanged) {
+            existing.notified = false;
+            existing.completed = false;
+          }
+        }
+        showSystemToast('Note updated.');
+      } else {
+        const newNote = {
+          id: 'note-' + Date.now(),
+          title,
+          content,
+          category,
+          color: selectedColor,
+          pinned,
+          completed: false,
+          reminderAt,
+          notified: false,
+          createdAt: Date.now()
+        };
+        notes.unshift(newNote);
+        showSystemToast(reminderAt ? 'Note & reminder saved.' : 'Note created.');
+      }
+
+      saveToStorage();
+      closeNoteModal();
+      renderAll();
+    }
+
+    function deleteNote(id) {
+      notes = notes.filter(n => n.id !== id);
+      saveToStorage();
+      renderAll();
+      showSystemToast('Note deleted.');
+    }
+
+    function togglePin(id) {
+      const note = notes.find(n => n.id === id);
+      if (note) {
+        note.pinned = !note.pinned;
+        saveToStorage();
+        renderAll();
+      }
+    }
+
+    function toggleComplete(id) {
+      const note = notes.find(n => n.id === id);
+      if (note) {
+        note.completed = !note.completed;
+        saveToStorage();
+        renderAll();
+      }
+    }
+
+    // ==========================================
+    // 7. MODAL HELPERS (COLORS & TIME PRESETS)
+    // ==========================================
+    function renderColorSwatches() {
+      const container = document.getElementById('colorPicker');
+      container.innerHTML = CARD_COLORS.map(c => {
+        const activeRing = selectedColor === c.id ? 'ring-2 ring-offset-2 ring-indigo-500 dark:ring-offset-slate-900 scale-110' : 'opacity-80 hover:opacity-100';
+        return `
+          <button
+            type="button"
+            title="${c.label}"
+            onclick="selectCardColor('${c.id}')"
+            class="w-6 h-6 rounded-full ${c.swatch} ${activeRing} transition-all"
+          ></button>
+        `;
+      }).join('');
+    }
+
+    function selectCardColor(colorId) {
+      selectedColor = colorId;
+      renderColorSwatches();
+    }
+
+    function setQuickReminder(minutesOffset) {
+      const target = new Date(Date.now() + minutesOffset * 60 * 1000);
+      document.getElementById('noteReminderInput').value = toLocalDatetimeString(target);
+    }
+
+    function clearReminderInput() {
+      document.getElementById('noteReminderInput').value = '';
+    }
+
+    function toLocalDatetimeString(date) {
+      const pad = n => String(n).padStart(2, '0');
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    }
+
+    // ==========================================
+    // 8. FILTERING & RENDERING
+    // ==========================================
+    function setStatusFilter(status) {
+      currentStatusFilter = status;
+      renderAll();
+    }
+
+    function setCategoryFilter(cat) {
+      currentCategoryFilter = cat;
+      renderAll();
+    }
+
+    function bindEvents() {
+      const searchInput = document.getElementById('searchInput');
+      const clearBtn = document.getElementById('clearSearchBtn');
+
+      searchInput.addEventListener('input', e => {
+        searchQuery = e.target.value.trim().toLowerCase();
+        clearBtn.classList.toggle('hidden', searchQuery.length === 0);
+        renderAll();
+      });
+
+      clearBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        searchQuery = '';
+        clearBtn.classList.add('hidden');
+        renderAll();
+      });
+
+      // Close modal on Escape key or backdrop click
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closeNoteModal();
+      });
+
+      document.getElementById('noteModal').addEventListener('click', e => {
+        if (e.target.id === 'noteModal') closeNoteModal();
+      });
+    }
+
+    function renderAll() {
+      updateFilterUI();
+      updateCounters();
+
+      const filtered = notes
+        .filter(note => {
+          // Status filter
+          if (currentStatusFilter === 'reminders' && !note.reminderAt) return false;
+          if (currentStatusFilter === 'pinned' && !note.pinned) return false;
+          if (currentStatusFilter === 'completed' && !note.completed) return false;
+
+          // Category filter
+          if (currentCategoryFilter !== 'All' && note.category !== currentCategoryFilter) return false;
+
+          // Search query
+          if (searchQuery) {
+            const haystack = `${note.title} ${note.content} ${note.category}`.toLowerCase();
+            if (!haystack.includes(searchQuery)) return false;
+          }
+          return true;
+        })
+        .sort((a, b) => {
+          // Pinned first, then incomplete before completed, then newest first
+          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+          if (a.completed !== b.completed) return a.completed ? 1 : -1;
+          return b.createdAt - a.createdAt;
+        });
+
+      const grid = document.getElementById('notesGrid');
+      const empty = document.getElementById('emptyState');
+
+      if (filtered.length === 0) {
+        grid.innerHTML = '';
+        empty.classList.remove('hidden');
+        empty.classList.add('flex');
+        return;
+      }
+
+      empty.classList.add('hidden');
+      empty.classList.remove('flex');
+
+      grid.innerHTML = filtered.map(note => createNoteCardHTML(note)).join('');
+    }
+
+    function createNoteCardHTML(note) {
+      const colorObj = CARD_COLORS.find(c => c.id === note.color) || CARD_COLORS[0];
+      const catBadge = CATEGORY_STYLES[note.category] || CATEGORY_STYLES.Personal;
+      const reminderMeta = getReminderBadgeMeta(note);
+
+      return `
+        <article class="group relative flex flex-col justify-between rounded-2xl border ${colorObj.bg} ${colorObj.border} p-4 shadow-sm hover:shadow-md transition-all duration-200 ${note.completed ? 'opacity-65' : ''}">
+          <div>
+            <!-- Top Row: Category & Pin -->
+            <div class="flex items-center justify-between gap-2 mb-2.5">
+              <span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${catBadge}">
+                ${escapeHTML(note.category)}
+              </span>
+
+              <div class="flex items-center gap-1">
+                <!-- Complete Toggle -->
+                <button
+                  onclick="toggleComplete('${note.id}')"
+                  title="${note.completed ? 'Mark as Active' : 'Mark as Completed'}"
+                  class="p-1.5 rounded-lg transition-colors ${note.completed ? 'text-emerald-600 bg-emerald-100/70 dark:bg-emerald-900/40' : 'text-slate-400 hover:text-emerald-600 hover:bg-slate-200/50 dark:hover:bg-slate-800'}"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </button>
+
+                <!-- Pin Toggle -->
+                <button
+                  onclick="togglePin('${note.id}')"
+                  title="${note.pinned ? 'Unpin Note' : 'Pin Note'}"
+                  class="p-1.5 rounded-lg transition-colors ${note.pinned ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-100/70 dark:bg-indigo-900/40' : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-200/50 dark:hover:bg-slate-800'}"
+                >
+                  <svg class="w-4 h-4" fill="${note.pinned ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Note Title -->
+            <h3 class="font-bold text-base text-slate-900 dark:text-slate-100 leading-snug mb-1.5 ${note.completed ? 'line-through text-slate-500' : ''}">
+              ${escapeHTML(note.title)}
+            </h3>
+
+            <!-- Note Body -->
+            ${note.content ? `
+              <p class="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-line line-clamp-5 leading-relaxed mb-3">
+                ${escapeHTML(note.content)}
+              </p>
+            ` : '<div class="mb-3"></div>'}
+          </div>
+
+          <!-- Footer: Reminder Badge & Edit/Delete Actions -->
+          <div class="pt-3 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between gap-2">
+            <div class="min-w-0 flex-1">
+              ${reminderMeta ? `
+                <div data-reminder-id="${note.id}" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium max-w-full truncate ${reminderMeta.classes}">
+                  <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span class="truncate reminder-label">${reminderMeta.text}</span>
+                </div>
+              ` : `
+                <span class="text-[11px] text-slate-400">
+                  ${new Date(note.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                </span>
+              `}
+            </div>
+
+            <!-- Hover Action Buttons -->
+            <div class="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
+              <button
+                onclick="openNoteModal('${note.id}')"
+                title="Edit Note"
+                class="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </button>
+              <button
+                onclick="deleteNote('${note.id}')"
+                title="Delete Note"
+                class="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-100/60 dark:hover:bg-rose-950/50 transition-colors"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </article>
+      `;
+    }
+
+    function getReminderBadgeMeta(note) {
+      if (!note.reminderAt) return null;
+
+      const due = new Date(note.reminderAt);
+      const diffMs = due.getTime() - Date.now();
+      const formattedTime = due.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+      if (note.completed) {
+        return {
+          text: `Done • ${formattedTime}`,
+          classes: 'bg-slate-200/70 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+        };
+      }
+
+      if (diffMs <= 0) {
+        return {
+          text: `Overdue • ${formattedTime}`,
+          classes: 'bg-rose-100 text-rose-700 dark:bg-rose-950/80 dark:text-rose-300 animate-soft-pulse'
+        };
+      }
+
+      if (diffMs <= 60 * 60 * 1000) {
+        const mins = Math.max(1, Math.ceil(diffMs / 60000));
+        return {
+          text: `In ${mins}m • ${due.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+          classes: 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300'
+        };
+      }
+
+      return {
+        text: formattedTime,
+        classes: 'bg-indigo-100/80 text-indigo-700 dark:bg-indigo-950/80 dark:text-indigo-300'
+      };
+    }
+
+    function refreshCountdowns() {
+      notes.forEach(note => {
+        if (!note.reminderAt) return;
+        const badgeEl = document.querySelector(`[data-reminder-id="${note.id}"]`);
+        if (badgeEl) {
+          const meta = getReminderBadgeMeta(note);
+          if (meta) {
+            const label = badgeEl.querySelector('.reminder-label');
+            if (label && label.textContent !== meta.text) {
+              label.textContent = meta.text;
+              badgeEl.className = `inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium max-w-full truncate ${meta.classes}`;
+            }
+          }
+        }
+      });
+    }
+
+    function updateFilterUI() {
+      document.querySelectorAll('.status-tab').forEach(btn => {
+        const active = btn.dataset.status === currentStatusFilter;
+        btn.className = active
+          ? 'status-tab px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm transition-all'
+          : 'status-tab px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-all';
+      });
+
+      document.querySelectorAll('.cat-pill').forEach(btn => {
+        const active = btn.dataset.cat === currentCategoryFilter;
+        btn.className = active
+          ? 'cat-pill px-3 py-1 rounded-full text-xs font-semibold bg-indigo-600 border-indigo-600 text-white shadow-sm transition-all'
+          : 'cat-pill px-3 py-1 rounded-full text-xs font-medium bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-indigo-400 transition-all';
+      });
+    }
+
+    function updateCounters() {
+      document.getElementById('count-all').textContent = notes.length;
+      document.getElementById('count-reminders').textContent = notes.filter(n => Boolean(n.reminderAt)).length;
+      document.getElementById('count-pinned').textContent = notes.filter(n => n.pinned).length;
+      document.getElementById('count-completed').textContent = notes.filter(n => n.completed).length;
+    }
+
+    // ==========================================
+    // 9. EXPORT & IMPORT JSON BACKUP
+    // ==========================================
+    function exportData() {
+      const dataStr = JSON.stringify(notes, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `memoflow-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showSystemToast('Notes exported as JSON.');
+    }
+
+    function importData(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (!Array.isArray(imported)) throw new Error('Invalid format');
+          notes = imported;
+          saveToStorage();
+          renderAll();
+          showSystemToast(`Imported ${notes.length} notes successfully.`);
+        } catch (err) {
+          showSystemToast('Invalid JSON backup file.', 'error');
+        }
+        event.target.value = '';
+      };
+      reader.readAsText(file);
+    }
+
+    // ==========================================
+    // 10. SECURITY UTILITY
+    // ==========================================
+    function escapeHTML(str) {
+      if (!str) return '';
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // Boot application
+    initApp();
+  </script>
+</body>
+</html>
