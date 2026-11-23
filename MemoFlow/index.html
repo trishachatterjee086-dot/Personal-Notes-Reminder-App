@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#4f46e5">
+  <meta name="description" content="MemoFlow is a clean, offline-first notes and reminders app.">
+  <title>MemoFlow — Notes & Smart Reminders</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="src/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="MemoFlow home">
+        <span class="brand-mark" aria-hidden="true">✎</span>
+        <span><strong>MemoFlow</strong><small>Notes & Smart Reminders</small></span>
+      </a>
+      <label class="search-wrap">
+        <span aria-hidden="true">⌕</span>
+        <input id="searchInput" type="search" placeholder="Search notes, tasks or tags…" autocomplete="off">
+        <button id="clearSearchBtn" class="icon-btn clear-search hidden" type="button" aria-label="Clear search">×</button>
+      </label>
+      <div class="header-actions">
+        <button id="exportBtn" class="icon-btn" type="button" title="Export backup" aria-label="Export backup">⇩</button>
+        <label class="icon-btn import-label" title="Import backup" aria-label="Import backup">⇧
+          <input id="importInput" type="file" accept="application/json,.json" hidden>
+        </label>
+        <button id="themeBtn" class="icon-btn" type="button" title="Toggle theme" aria-label="Toggle theme">☾</button>
+        <button id="newNoteBtn" class="primary-btn" type="button"><span>＋</span> <span class="button-text">New note</span></button>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <section class="welcome-row">
+        <div>
+          <p class="eyebrow" id="todayLabel">YOUR WORKSPACE</p>
+          <h1>Good things start with a note.</h1>
+          <p class="subheading">Capture ideas, organize your day, and never miss a reminder.</p>
+        </div>
+        <div class="clock-card"><span class="live-dot"></span><span id="liveClock">--:--:--</span></div>
+      </section>
+
+      <section class="stats-grid" aria-label="Workspace overview">
+        <article class="stat-card"><span class="stat-icon purple">▤</span><div><span class="stat-label">Total notes</span><strong id="totalCount">0</strong></div></article>
+        <article class="stat-card"><span class="stat-icon blue">◷</span><div><span class="stat-label">Active reminders</span><strong id="reminderCount">0</strong></div></article>
+        <article class="stat-card"><span class="stat-icon green">✓</span><div><span class="stat-label">Completed</span><strong id="completedCount">0</strong></div></article>
+        <article class="stat-card"><span class="stat-icon orange">!</span><div><span class="stat-label">Overdue</span><strong id="overdueCount">0</strong></div></article>
+      </section>
+
+      <section class="toolbar" aria-label="Note filters">
+        <div class="filter-tabs" role="group" aria-label="Status filter">
+          <button class="tab active" data-status="all" type="button">All <span id="countAll">0</span></button>
+          <button class="tab" data-status="reminders" type="button">Reminders <span id="countReminders">0</span></button>
+          <button class="tab" data-status="pinned" type="button">Pinned <span id="countPinned">0</span></button>
+          <button class="tab" data-status="completed" type="button">Completed <span id="countCompleted">0</span></button>
+          <button class="tab" data-status="archived" type="button">Archived <span id="countArchived">0</span></button>
+        </div>
+        <div class="toolbar-right">
+          <label class="select-wrap"><span class="sr-only">Filter by category</span>
+            <select id="categoryFilter">
+              <option value="all">All categories</option>
+              <option value="Personal">Personal</option>
+              <option value="Work">Work</option>
+              <option value="Ideas">Ideas</option>
+              <option value="Urgent">Urgent</option>
+            </select>
+          </label>
+          <label class="select-wrap"><span class="sr-only">Sort notes</span>
+            <select id="sortSelect">
+              <option value="updated">Recently updated</option>
+              <option value="created">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="title">Title A–Z</option>
+              <option value="reminder">Reminder date</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <section class="section-heading">
+        <div><h2 id="listHeading">Your notes</h2><p id="resultSummary">Everything you've saved, in one place.</p></div>
+        <button id="testSoundBtn" class="text-btn" type="button">♪ Test reminder sound</button>
+      </section>
+      <section id="notesGrid" class="notes-grid" aria-live="polite"></section>
+      <section id="emptyState" class="empty-state hidden">
+        <div class="empty-icon">✎</div><h3 id="emptyTitle">Your space is ready</h3>
+        <p id="emptyText">Create your first note and start organizing your thoughts.</p>
+        <button id="emptyCreateBtn" class="primary-btn" type="button">＋ Create a note</button>
+      </section>
+    </main>
+    <footer class="footer"><span>MemoFlow</span><span>Made to keep your thoughts in flow.</span></footer>
+  </div>
+
+  <div id="noteDialog" class="dialog-backdrop hidden" role="presentation">
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
+      <header class="dialog-header"><div><p class="eyebrow">YOUR WORKSPACE</p><h2 id="dialogTitle">Create a note</h2></div><button id="closeDialogBtn" class="icon-btn" type="button" aria-label="Close dialog">×</button></header>
+      <form id="noteForm">
+        <input id="noteId" type="hidden">
+        <label class="field-label" for="noteTitle">Title <span>*</span></label>
+        <input id="noteTitle" class="text-input" maxlength="120" required placeholder="Give your note a title">
+        <label class="field-label" for="noteContent">Details</label>
+        <textarea id="noteContent" class="text-input textarea" rows="6" maxlength="10000" placeholder="Write your thoughts, plans or checklist…"></textarea>
+        <div class="form-row">
+          <div><label class="field-label" for="noteCategory">Category</label><select id="noteCategory" class="text-input"><option>Personal</option><option>Work</option><option>Ideas</option><option>Urgent</option></select></div>
+          <div><label class="field-label" for="noteColor">Card color</label><select id="noteColor" class="text-input"><option value="plain">Cloud</option><option value="lavender">Lavender</option><option value="mint">Mint</option><option value="peach">Peach</option><option value="sky">Sky</option><option value="rose">Rose</option></select></div>
+        </div>
+        <label class="field-label" for="noteTags">Tags <small>Separate with commas</small></label>
+        <input id="noteTags" class="text-input" maxlength="200" placeholder="planning, ideas, personal">
+        <div class="reminder-panel">
+          <div class="panel-heading"><div><strong>Reminder</strong><small>Choose when you want to be reminded.</small></div><button id="clearReminderBtn" class="text-btn" type="button">Clear</button></div>
+          <input id="noteReminder" class="text-input" type="datetime-local">
+          <div class="quick-times"><button type="button" data-minutes="10">In 10 min</button><button type="button" data-minutes="60">In 1 hour</button><button type="button" data-minutes="1440">Tomorrow</button></div>
+        </div>
+        <div class="form-bottom">
+          <label class="check-label"><input id="notePinned" type="checkbox"> Pin this note</label>
+          <div class="dialog-actions"><button id="cancelDialogBtn" class="secondary-btn" type="button">Cancel</button><button class="primary-btn" type="submit">Save note</button></div>
+        </div>
+        <p id="formError" class="form-error" role="alert"></p>
+      </form>
+    </section>
+  </div>
+
+  <div id="toastRegion" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>
